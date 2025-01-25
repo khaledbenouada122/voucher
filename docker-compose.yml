@@ -1,0 +1,22 @@
+version: "3"
+services:
+  node:
+    container_name: nestjs_dockerize
+    build: .
+    command: npm run start:dev
+    ports:
+      - 4001:4001
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=khallasli
+      - RABBITMQ_PASSWORD=khallasli@iop
+      - RABBITMQ_VHOST=/voucher
+    depends_on:
+      - rabbitmq
+    networks:
+      - rabbitmq_network
+
+networks:
+  rabbitmq_network:
+    external: true

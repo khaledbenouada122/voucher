@@ -1,0 +1,118 @@
+stages:
+   - sonarqube-check
+   - test-zap
+   - build-image
+   - scan-image
+   - deploy-image
+
+# Global variables
+variables:
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Analysis task cache location
+  GIT_DEPTH: "0"  # Fetch all branches
+
+# Stage 1: Code Quality Check with SonarQube
+sonarqube-check:
+  stage: sonarqube-check
+  image: openjdk:17-slim  # Use a base image that has Java 17 installed
+  tags:
+    - docker
+  script:
+    - apt-get update && apt-get install -y wget unzip
+    - wget -O sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip
+    - unzip sonar-scanner.zip -d $CI_PROJECT_DIR/sonar-scanner
+    - export PATH="$CI_PROJECT_DIR/sonar-scanner/sonar-scanner-5.0.1.3006-linux/bin:$PATH"
+    - export SONAR_SCANNER_OPTS="-Xmx512m"  # Optionally set memory limits
+    - sonar-scanner
+    - curl -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/issues/gitlab_sast_export?projectKey=service-voucher&branch=${CI_COMMIT_BRANCH}&pullRequest=${CI_MERGE_REQUEST_IID}" -o gl-sast-sonar-report-voucher.json
+  allow_failure: true
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'devops'
+  artifacts:
+    expire_in: 1 day
+    reports:
+      sast: gl-sast-sonar-report-voucher.json
+
+# Stage 2: API Security Testing with ZAP
+test-zap:
+  stage: test-zap
+  tags:
+    - docker
+  allow_failure: true
+  image: 
+    name: zaproxy/zap-stable
+    entrypoint: [""]
+  script:
+    - set -e  # Fail immediately if a command exits with a non-zero status
+    - mkdir -p /tmp/zap  # Using a writable directory
+    - ls -la /zap  # List the files in the /zap directory to check the script's location
+    - wget -O /tmp/zap/swagger-spec.json http://192.168.12.118:4001/swagger-spec.json  # Download the Swagger spec file
+    - python3 /zap/zap-api-scan.py -t http://192.168.12.118:4001 -f openapi -S /tmp/zap/swagger-spec.json -r /tmp/zap/test-report-voucher.html
+    - apt-get update && apt-get install -y wkhtmltopdf  # Install wkhtmltopdf
+    - wkhtmltopdf /tmp/zap/test-report-voucher.html /tmp/zap/test-report-voucher.pdf
+  after_script:
+    - cp /tmp/zap/test-report-voucher.pdf . || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - test-report.pdf
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'devops'
+
+# Stage 3: Docker Image Build
+build_image:
+  stage: build-image
+  image: docker:latest
+  tags:
+    - docker
+  services:
+    - docker:dind
+  before_script:
+    - docker stop service-voucher 2>/dev/null || true  # Stop any running instance
+    - docker rm service-voucher 2>/dev/null || true  # Remove the existing container
+    - docker rmi service-voucher 2>/dev/null || true  # Remove the old image
+  script:
+    - ssh -V  # Check SSH version (good to verify if SSH is set up correctly)
+    - cd /home/gitlab-runner/builds/N_EBSwkN/0/khallasli-refonte/service-voucher
+    - set -e
+    - docker build -t $DOCKER_USERNAME/service-voucher .
+
+# Stage 4: Scan Docker Image
+scan_image:
+  stage: scan-image
+  image: docker:latest  
+  tags:
+    - docker
+  needs: 
+    - build_image
+  services:
+    - docker:dind
+  script:
+    - trivy image $DOCKER_USERNAME/service-voucher:latest --output voucher-service-scanning-report.txt
+  artifacts:
+    when: always
+    reports:
+      container_scanning: voucher-service-scanning-report.txt
+
+# Stage 5: Deploy Docker Image
+deploy_image:
+  stage: deploy-image
+  tags:
+    - docker
+  needs: 
+    - scan_image
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  script:
+    - set -e
+    - IMAGE_TAG="$(git rev-parse --short HEAD)"  # Generate a timestamp as a unique tag
+    - docker tag $DOCKER_USERNAME/service-voucher:latest $DOCKER_USERNAME/service-voucher:$IMAGE_TAG  # Tag the image
+    - docker push $DOCKER_USERNAME/service-voucher:$IMAGE_TAG
+    - docker run -d --name booking-service -p 4001:4001 $DOCKER_USERNAME/service-voucher:$IMAGE_TAG
+    # - echo "Pulling code on the server after merge to preprod branch..."
+    # - ssh -o StrictHostKeyChecking=no khallasli@192.168.12.118 "cd /home/khallasli/booking-service && git pull origin preprod"

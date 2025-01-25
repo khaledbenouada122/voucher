@@ -1,0 +1,11 @@
+node_modules
+dist
+devops
+documentation
+scripts
+docker-compose.yml
+test
+.gitlab-ci.yml
+.git
+.env
+docker.env

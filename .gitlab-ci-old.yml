@@ -1,0 +1,137 @@
+image: 
+  name: sonarsource/sonarcloud-scan:2.0.0
+  entrypoint: [""]
+  
+stages:
+  - sonarqube-check
+  - sonarqube-vulnerability-report
+  - test-zap
+  - build-image
+  - scan-image
+  - deploy-image
+
+variables:
+  SONAR_USER_HOME: "${CI_PROJECT_DIR}/.sonar"  # Analysis task cache location
+  GIT_DEPTH: "0"  # Fetch all branches
+  #GIT_STRATEGY: clone
+  #GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no"
+  #GIT_CLONE_PATH: "300"
+
+sonarqube-check:
+  stage: sonarqube-check
+  tags:
+    - linux
+  cache:
+    policy: pull
+    key: "${CI_COMMIT_SHORT_SHA}"
+    paths:
+      - sonar-scanner/  
+  script: 
+    - sonar-scanner
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: $CI_COMMIT_BRANCH == 'devops'
+
+sonarqube-vulnerability-report:
+  stage: sonarqube-vulnerability-report
+  script:
+    - curl -u "${SONAR_TOKEN}:" "${SONAR_HOST_URL}/api/issues/gitlab_sast_export?projectKey=bill-service&branch=${CI_COMMIT_BRANCH}&pullRequest=${CI_MERGE_REQUEST_IID}" -o gl-sast-sonar-report.json
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+    - if: $CI_COMMIT_BRANCH == 'master'
+    - if: $CI_COMMIT_BRANCH == 'main'
+    - if: $CI_COMMIT_BRANCH == 'devops'
+  artifacts:
+    expire_in: 1 day
+    reports:
+      sast: gl-sast-sonar-report.json
+
+test-zap:
+  stage: test-zap
+  allow_failure: true
+  image: 
+    name: zaproxy/zap-stable
+    entrypoint: [""]
+
+  script:
+    - set -e  # Fail immediately if a command exits with a non-zero status
+    - echo "Creating a directory..."
+    - mkdir -p /zap/wrk
+    - echo "Downloading Swagger spec..."
+    - wget -O /zap/wrk/swagger-spec.json https://your-server.com/swagger-spec.json  # Download the swagger spec file
+    - echo "Executing the API scan..."
+    - /zap/zap-api-scan.py -t https://your-api-url.com -f openapi -S /zap/wrk/swagger-spec.json -r /zap/wrk/test-report.html
+    - echo "Converting HTML report to PDF..."
+    - apt-get update && apt-get install -y wkhtmltopdf  # Install wkhtmltopdf
+    - wkhtmltopdf /zap/wrk/test-report.html /zap/wrk/test-report.pdf  # Convert HTML to PDF
+  after_script:
+    - echo "Copying report file to the artifact path..."
+    - cp /zap/wrk/test-report.html . || true
+    - cp /zap/wrk/test-report.pdf . || true
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - test-report.html
+      - test-report.pdf
+
+  only:
+    - devops
+
+# Build Docker image
+build_image:
+  stage: build-image
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker stop service-voucher 2>/dev/null || true
+    - docker rm service-voucher 2>/dev/null || true
+    - docker rmi service-voucher 2>/dev/null || true
+  script:
+    - set -e
+    - docker build -t $DOCKER_USERNAME/service-voucher .
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "devops"'
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_MESSAGE =~ /Merge/'
+
+# Scan Docker image
+scan_image:
+  stage: scan-image
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - set -e
+    - docker save $DOCKER_IMAGE > image.tar
+    - trivy image --exit-code 0 --severity HIGH,CRITICAL $DOCKER_IMAGE
+    - trivy image --exit-code 1 --severity CRITICAL $DOCKER_IMAGE
+    - rm image.tar  # Cleanup
+
+  allow_failure: true
+  needs:
+    - job: build_image
+
+# Deploy Docker image
+deploy_image:
+  stage: deploy-image
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+  script:
+    - set -e
+    - docker push $DOCKER_USERNAME/service-voucher
+    - docker run -d --name service-voucher -p 3000:3000 $DOCKER_USERNAME/service-voucher
+  needs:
+    - job: scan_image
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "devops"'
+    - if: '$CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_MESSAGE =~ /Merge/'
