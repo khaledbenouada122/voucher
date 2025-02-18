@@ -47,7 +47,7 @@ try {
             newStock.serial = data.serial || '';
             newStock.validityDate = data.validityDate || '';
            
-            newStock.productId  = productId;
+            //newStock.productId  = productId;
         
      
   

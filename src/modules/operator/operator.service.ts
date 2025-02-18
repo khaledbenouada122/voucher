@@ -24,43 +24,21 @@ export class OperatorService {
     private operatorRepository: Repository<Operator>
   ) {}
 
-  async create(ln: string, createOperator: CreateOperatorDto): Promise<GlobalResponse> {
-    await this.operatorRepository.update({ label: createOperator.label }, { enabled: false });
-    let extension;
-    try {
-      const filePath = path.join(__dirname, '../../..', '/public/operator/', createOperator.label); // Adjust path as needed
-      console.log('filePath', filePath);
-      extension = await uploadBase64(filePath, createOperator.image);
-    } catch (error) {
-      console.log('error', error);
-      await this.logsService.create(
-        'upload image operator',
-        error.message,
-        1,
-        'api/operator',
-        'POST'
-      );
-      throw new HttpException(globalMessages[ln].error.invalidParams, HttpStatus.BAD_REQUEST, {
-        cause: 'Operator.create.upload error',
-        description: error.message,
-      });
-    }
-
-    try {
-      const operator: Operator = this.operatorRepository.create({
-        ...createOperator,
-        imagePath: '/public/operator/' + createOperator.label + '.' + extension,
-      });
-      const operatorCreated = await this.operatorRepository.save(operator);
-      return new GlobalResponse(operatorCreated, globalMessages[ln].success.add);
-    } catch (error) {
-      await this.logsService.create('create operator', error.message, 2, 'api/operator', 'POST');
-      throw new HttpException(globalMessages[ln].error.server, HttpStatus.INTERNAL_SERVER_ERROR, {
-        cause: 'Operator.create error',
-        description: error.message,
-      });
-    }
-  }
+  async create( createFacial: CreateOperatorDto): Promise<GlobalResponse> {
+     await this.operatorRepository.update({ label: createFacial.label }, { enabled: false });
+ 
+     try {
+       const Facial: Operator = this.operatorRepository.create(createFacial);
+       const OperatorCreated = await this.operatorRepository.save(Facial);
+       return new GlobalResponse(OperatorCreated, "creation opérateur  avec Succées");
+     } catch (error) {
+       await this.logsService.create('create Facial', error.message, 2, 'api/facial', 'POST');
+       throw new HttpException(globalMessages['fr'].error.server, HttpStatus.INTERNAL_SERVER_ERROR, {
+         cause: 'Facial.create error',
+         description: error.message,
+       });
+     }
+   }
   async getAll(ln: string, filters: FiltersOperatorDto): Promise<GlobalResponseArray> {
     try {
       const validFields = ['label', 'enabled'];

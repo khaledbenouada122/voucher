@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, Matches, MinLength } from 'class-validator';
+import { IsNotEmpty, IsOptional, Matches, MinLength } from 'class-validator';
 import { LanguageDto } from '../language';
 
 export class CreateOperatorDto extends LanguageDto {
@@ -10,13 +10,13 @@ export class CreateOperatorDto extends LanguageDto {
   })
   label: string;
 
-  @MinLength(6)
+  @IsOptional()
   @ApiProperty({
     example: '*********',
     required: true,
   })
   description: string;
-  @IsNotEmpty()
+  @IsOptional()
   @Matches(/^data:image\/(png|jpeg);base64,/, { message: 'Invalid image format' })
   @ApiProperty({
     example: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA3',

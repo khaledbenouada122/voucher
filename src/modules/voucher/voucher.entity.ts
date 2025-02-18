@@ -1,27 +1,18 @@
-import {
-  BaseEntity,
-  Column,
-  CreateDateColumn,
-  Entity,
-  UpdateDateColumn,
-  PrimaryGeneratedColumn,
-  ManyToOne,
-} from 'typeorm';
-import { IsDate, IsString } from 'class-validator';
+
+
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, CreateDateColumn } from 'typeorm';
 import { Transaction } from '../transaction/transaction.entity';
-import { Product } from '../product/product.entity';
+import { IsDate, IsString } from 'class-validator';
 
-import { EncryptionTransformer } from 'src/common/transformers/encryptionTransformer';
 
-@Entity({ name: 'vouchers' })
-export class Voucher extends BaseEntity {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
+@Entity()
+export class Voucher {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-  @Column({ type: 'text', transformer: new EncryptionTransformer() })
+  @Column({ type: 'text' })
   @IsString()
   code: string;
-
   @Column({ unique: true })
   @IsString()
   serial: string;
@@ -29,10 +20,13 @@ export class Voucher extends BaseEntity {
   @Column()
   @IsDate()
   validityDate: Date;
-
+  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  amount: number;
   @Column({ default: 0 })
   status: number; // 0 non vendu | 1 vendu
 
+  @Column({ default: false })
+  used: boolean; 
   @Column({ nullable: true })
   createdBy: string;
 
@@ -45,31 +39,6 @@ export class Voucher extends BaseEntity {
   @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
-  @UpdateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
-  })
-  updatedAt: Date;
-
-  @ManyToOne(() => Transaction, (transaction) => transaction.vouchers, {
-    onDelete: 'CASCADE',
-    nullable: true,
-  })
+  @OneToOne(() => Transaction, (transaction) => transaction.voucher)
   transaction: Transaction;
-  @Column({ nullable: true })
-  transactionId: string;
-
-  @ManyToOne(() => Product, (product) => product.vouchers, {
-    onDelete: 'CASCADE',
-    nullable: true,
-  })
-  product: Product;
-  @Column()
-  productId: string;
-
- 
-  document: Document;
-  @Column()
-  documentId: string;
 }

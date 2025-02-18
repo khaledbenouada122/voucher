@@ -1,19 +1,14 @@
-
+// voucher.module.ts
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Voucher } from './voucher.entity';
 import { VoucherService } from './voucher.service';
 import { VoucherController } from './voucher.controller';
-/*
-https://docs.nestjs.com/modules
-*/
-
-import { Module } from '@nestjs/common';
-import { Voucher } from './voucher.entity';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { LogsModule } from '../logs/logs.module';
+import { TransactionModule } from '../transaction/transaction.module';
 
 @Module({
-  imports: [ LogsModule, TypeOrmModule.forFeature([Voucher])],
-  controllers: [VoucherController],
+  imports: [TypeOrmModule.forFeature([Voucher]), TransactionModule],
   providers: [VoucherService],
-  exports: [VoucherService],
+  controllers: [VoucherController],
 })
 export class VoucherModule {}

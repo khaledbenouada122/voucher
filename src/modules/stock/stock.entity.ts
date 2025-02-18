@@ -11,7 +11,7 @@ import { IsDate, IsString } from 'class-validator';
 import { Transaction } from '../transaction/transaction.entity';
 import { Product } from '../product/product.entity';
 
-import { EncryptionTransformer } from 'src/common/transformers/encryptionTransformer';
+
 
 @Entity({ name: 'stock' })
 export class Stock extends BaseEntity {
@@ -52,23 +52,8 @@ export class Stock extends BaseEntity {
   })
   updatedAt: Date;
 
-  @ManyToOne(() => Transaction, (transaction) => transaction.vouchers, {
-    onDelete: 'CASCADE',
-    nullable: true,
-  })
-  transaction: Transaction;
-  @Column({ nullable: true })
-  transactionId: string;
 
-  @ManyToOne(() => Product, (product) => product.vouchers, {
-    onDelete: 'CASCADE',
-    nullable: true,
-  })
-  product: Product;
-  @Column()
-  productId: string;
 
  
-
 
 }

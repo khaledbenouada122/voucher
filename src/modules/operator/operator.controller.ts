@@ -47,7 +47,7 @@ export class OperatorController {
   createTCP(@Payload() createOperator: CreateOperatorDto): Promise<GlobalResponse> {
     const lang = createOperator.lang;
     delete createOperator.lang;
-    return this.operatorService.create(lang, createOperator);
+    return this.operatorService.create();
   }
 
   @MessagePattern({ cmd: 'update-operator' })

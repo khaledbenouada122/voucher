@@ -66,8 +66,8 @@ export class Product extends BaseEntity {
   })
   updatedAt: Date;
 
-  @OneToMany(() => Voucher, (voucher) => voucher.product)
-  vouchers: Array<Voucher>;
+  /*@OneToMany(() => Voucher, (voucher) => voucher.product)
+  vouchers: Array<Voucher>;*/
 
   @ManyToOne(() => Operator, (operator) => operator.products, {
     onDelete: 'CASCADE',
@@ -87,6 +87,6 @@ export class Product extends BaseEntity {
 
 
 
-  @OneToMany(() => Transaction, (transaction) => transaction.product)
-  transactions: Transaction[];
+  /*@OneToMany(() => Transaction, (transaction) => transaction.product)
+  transactions: Transaction[];*/
 }

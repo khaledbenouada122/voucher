@@ -1,28 +1,14 @@
-/*
-https://docs.nestjs.com/modules
-*/
-
-import { forwardRef, Module } from '@nestjs/common';
-import { Transaction } from './transaction.entity';
-import { ProductModule } from '../product/product.module';
-import { LogsModule } from '../logs/logs.module';
+// transaction.module.ts
+import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TransactionController } from './transaction.controller';
+import { Transaction } from './transaction.entity';
 import { TransactionService } from './transaction.service';
-//import { RabbitmqModule } from 'src/common/config/rabbitMq/rabbitmq.module';
-import { VoucherModule } from '../voucher/voucher.module';
+import { TransactionController } from './transaction.controller';
 
 @Module({
-  imports: [
-    LogsModule,
-    ProductModule,
-   // GatewayModule,
-    //forwardRef(() => RabbitmqModule),
-    TypeOrmModule.forFeature([Transaction]),
-    VoucherModule,
-  ],
-  controllers: [TransactionController],
+  imports: [TypeOrmModule.forFeature([Transaction])],
   providers: [TransactionService],
-  exports: [TransactionService],
+  controllers: [TransactionController],
+  exports: [TypeOrmModule], 
 })
 export class TransactionModule {}
